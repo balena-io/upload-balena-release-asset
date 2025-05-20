@@ -1,0 +1,12 @@
+- commits:
+    - subject: Add basic project skeleton
+      hash: 1501c169d52b7775f71b0dcd788fd85889e6b04d
+      body: ""
+      footer:
+        Change-type: patch
+        change-type: patch
+      author: Otavio Jacobi
+      nested: []
+  version: 0.0.2
+  title: ""
+  date: 2025-05-20T16:58:56.192Z

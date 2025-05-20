@@ -1,6 +1,6 @@
 {
   "name": "upload-balena-release-asset",
-  "version": "1.0.0",
+  "version": "0.0.2",
   "main": "build/index.js",
   "type": "module",
   "scripts": {
@@ -48,5 +48,8 @@
     "mocha": "^11.4.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.3"
+  },
+  "versionist": {
+    "publishedAt": "2025-05-20T16:58:56.227Z"
   }
 }

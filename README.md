@@ -41,6 +41,16 @@ with:
   # Domain for the backend services to upload your asset.
   # Optional. Default 'balena-cloud.com'
   balena-host:
+
+  # The size of the chunks to split the file into when uploading.
+  # If the file is smaller than this size, it will be uploaded in one go.
+  # Minimum size is 5242880 (5MB).
+  # Optional. Default '104857600' (100MB)
+  chunk-size:
+
+  # The number of parallel chunks to upload at the same time.
+  # Optional. Default '4'
+  parallel-chunks:
 ```
 
 ## Examples
@@ -57,7 +67,7 @@ with:
     file-path: "/some/path/licenses.tgz"
 ```
 
-### Uploads a file as a release asset on staging overwriting in case one existed
+### Uploads a file as a release asset on staging overwriting in case one existed with custom upload chunk size and parallel chunks
 
 ```yaml
 - name: Upload release asset
@@ -69,4 +79,6 @@ with:
     file-path: "/some/path/licenses.tgz"
     overwrite: true
     balena-host: "balena-staging.com"
+    chunk-size: 5242880
+    parallel-chunks: 20
 ```

@@ -4,7 +4,7 @@ import sinon, { type SinonStub } from 'sinon';
 import { ZodError } from 'zod';
 
 let getInputStub: SinonStub;
-const DEFAULT_VALID_INPUT_STRINGS = {
+const DEFAULT_VALID_INPUT_STRINGS: Record<string, string> = {
 	'balena-token': 'test-token-123',
 	'balena-host': 'balena.example.com',
 	'release-id': '123456',
@@ -12,6 +12,8 @@ const DEFAULT_VALID_INPUT_STRINGS = {
 	'file-path': './path/to/firmware.zip',
 	overwrite: 'true',
 	'if-file-path-not-found': 'warn',
+	'chunk-size': '104857600',
+	'parallel-chunks': '4',
 };
 
 const mockGetInputValues = (overrides = {}) => {
@@ -54,6 +56,8 @@ describe('getInputs', () => {
 			filePath: './path/to/firmware.zip',
 			overwrite: true,
 			ifFilePathNotFound: 'warn',
+			chunkSize: 104857600,
+			parallelChunks: 4,
 		});
 		expect(getInputStub.calledWith('balena-token')).to.be.true;
 	});
@@ -123,6 +127,20 @@ describe('getInputs', () => {
 			expect(error).to.be.instanceOf(ZodError);
 			expect(error.issues[0].path).to.deep.equal(['releaseId']);
 			expect(error.issues[0].message).to.equal('Expected number, received nan');
+		}
+	});
+	
+	it('should throw ZodError if chunkSize is less than 5242880', async () => {
+		mockGetInputValues({ 'chunk-size': '5242879' });
+		try {
+			await getInputsFn();
+			throw new Error('chunkSize (less than 5242880) validation did not throw');
+		} catch (error) {
+			expect(error).to.be.instanceOf(ZodError);
+			expect(error.issues[0].path).to.deep.equal(['chunkSize']);
+			expect(error.issues[0].message).to.equal(
+				'Number must be greater than or equal to 5242880',
+			);
 		}
 	});
 });

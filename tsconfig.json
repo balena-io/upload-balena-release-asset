@@ -1,11 +1,27 @@
 {
-  "$schema": "https://json.schemastore.org/tsconfig",
-  "extends": "./tsconfig.base.json",
-  "compilerOptions": {
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
-    "outDir": "./dist"
-  },
-  "exclude": ["__fixtures__", "__tests__", "coverage", "dist", "node_modules"],
-  "include": ["src"]
+	"compilerOptions": {
+		"module": "NodeNext",
+		"target": "es2022",
+        "outDir": "build",
+		"strict": true,
+		"useUnknownInCatchVariables": false,
+		"noImplicitThis": false,
+		"strictPropertyInitialization": false,
+		"noUnusedParameters": true,
+		"noUnusedLocals": true,
+		"preserveConstEnums": true,
+		"removeComments": true,
+		"resolveJsonModule": true,
+		"sourceMap": true,
+		"skipLibCheck": true,
+		"types": ["mocha"]
+	},
+	"include": [
+		"src/**/*.ts",
+		"test/**/*.ts",
+		"*.ts"
+	],
+	"exclude": [
+		"node_modules"
+	],
 }

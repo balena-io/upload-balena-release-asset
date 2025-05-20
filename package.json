@@ -34,8 +34,6 @@
   "dependencies": {
     "@actions/core": "^1.11.1",
     "@actions/github": "^6.0.1",
-    "@types/sinon": "^17.0.4",
-    "sinon": "^20.0.0",
     "zod": "^3.25.7"
   },
   "devDependencies": {
@@ -43,9 +41,11 @@
     "@github/local-action": "^3.2.1",
     "@types/chai": "^5.2.2",
     "@types/mocha": "^10.0.10",
+    "@types/sinon": "^17.0.4",
     "chai": "^5.2.0",
     "esmock": "^2.7.0",
     "mocha": "^11.4.0",
+    "sinon": "^20.0.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.3"
   },

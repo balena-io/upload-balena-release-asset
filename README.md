@@ -5,7 +5,7 @@ This action uploads a file as a balena release asserts.
 ## Usage
 
 ```yaml
-uses: balena-io-examples/upload-balena-release-asset@main
+uses: balena-io/upload-balena-release-asset@main
 with:
 
   # balenaCloud API token to login automatically.
@@ -60,7 +60,7 @@ with:
 
 ```yaml
 - name: Upload release asset
-  uses: balena-io-examples/upload-balena-release-asset@main
+  uses: balena-io/upload-balena-release-asset@main
   with:
     balena-token: "*****"
     release-id: 123456
@@ -72,7 +72,7 @@ with:
 
 ```yaml
 - name: Upload release asset
-  uses: balena-io-examples/upload-balena-release-asset@main
+  uses: balena-io/upload-balena-release-asset@main
   with:
     balena-token: "*****"
     release-id: 123456

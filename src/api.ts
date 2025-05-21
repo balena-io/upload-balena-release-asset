@@ -29,6 +29,7 @@ export class BalenaAPI {
 	constructor(inputs: Inputs) {
 		this.inputs = inputs;
 		this.sdk = getSdk({
+			isBrowser: false,
 			dataDirectory: false,
 			apiUrl: `https://api.${inputs.balenaHost}/`,
 			// @ts-expect-error - use unstable API

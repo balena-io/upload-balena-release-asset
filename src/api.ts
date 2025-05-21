@@ -1,222 +1,237 @@
-import { type BalenaSDK, getSdk } from 'balena-sdk';
-import type { Inputs } from './input.js';
-import { debug, info } from '@actions/core';
+import { info } from '@actions/core';
 import type { FileMetadata } from './uploadManager.js';
-import { uploadChunks } from './uploadManager.js';
-import { fileMetadata, loadFile } from './uploadManager.js';
+import { sleep } from './uploadManager.js';
 import type { webResourceHandler as webresources } from '@balena/pinejs';
-import type { WebResource } from 'balena-sdk/typings/pinejs-client-core.js';
+import type { ProviderCommitPayload } from './uploader.js';
 
-const MIN_MULTIPART_UPLOAD_SIZE = 5 * 1024 * 1024; // 5MB
+const MAX_RETRIES = 5; // Maximum number of retries for transient errors
+const INITIAL_BACKOFF_MS = 1000; // Initial backoff sleep for retries
 
-export type BeginReleaseAssetUpload = {
-	asset: {
-		uuid: string;
-		uploadParts: webresources.UploadPart[];
-	};
-};
-
-export type ProviderCommitPayload = {
-	Parts: Array<{
-		PartNumber: number;
-		ETag: string;
-	}>;
-};
 export class BalenaAPI {
-	private sdk: BalenaSDK;
-	private inputs: Inputs;
-
-	constructor(inputs: Inputs) {
-		this.inputs = inputs;
-		this.sdk = getSdk({
-			dataDirectory: false,
-			apiUrl: `https://api.${inputs.balenaHost}/`,
-			// @ts-expect-error - use unstable API
-			apiVersion: 'resin',
-		});
+	private apiHost: string;
+	constructor(
+		private readonly auth: string,
+		readonly balenaHost: string,
+	) {
+		this.apiHost = `https://api.${balenaHost}`.replace(/\/+$/, '');
 	}
 
-	public async init() {
-		await this.sdk.auth.loginWithToken(this.inputs.balenaToken);
-		// TODO: present a better error if it fails to login...
-		info(
-			`Logged in as ${JSON.stringify(await this.sdk.auth.whoami(), null, 2)}`,
-		);
-	}
+	private async fetchWithRetry(
+		path: string,
+		args: RequestInit,
+	): Promise<Response> {
+		let attempts = 0;
+		let currentBackoff = INITIAL_BACKOFF_MS;
 
-	private async canUpdateRelease() {
-		const res = await this.sdk.request.send({
-			method: 'POST',
-			url: `${this.sdk.pine.apiPrefix}release(${this.inputs.releaseId})/canAccess`,
-			body: { action: 'update' },
-		});
+		while (attempts < MAX_RETRIES) {
+			attempts++;
+			try {
+				const url = `${this.apiHost}${path}`;
+				const headers: HeadersInit = {
+					Authorization: `Bearer ${this.auth}`,
+					...args.headers,
+				};
 
-		if (res.statusCode !== 200 || res?.body?.d?.[0]?.id == null) {
-			throw new Error('You do not have necessary access to this release');
-		}
+				info(`Attempt ${attempts}: Calling ${args.method ?? 'GET'} ${url}`);
+				const response = await fetch(url, { ...args, headers });
 
-		info(`Access to release ${res.body.d[0].id} confirmed.`);
-	}
+				if (response.ok) {
+					return response;
+				}
 
-	private async getReleaseAssetId(): Promise<number> {
-		const sdkResult = (await this.sdk.pine.get({
-			resource: 'release_asset',
-			id: {
-				asset_key: this.inputs.assetKey,
-				release: this.inputs.releaseId,
-			},
-			// @ts-expect-error - use unstable API
-			options: { $select: 'id' },
-		})) as any;
+				if (response.status === 429) {
+					const retryAfterHeader = response.headers.get('Retry-After');
+					let retryAfterSeconds = currentBackoff / 1000;
 
-		if (sdkResult?.id == null || !Number.isInteger(sdkResult.id)) {
-			throw new Error(
-				`Failed to get release_asset id for '${this.inputs.assetKey}' - ${this.inputs.releaseId}`,
-			);
-		}
-		return sdkResult.id;
-	}
+					if (retryAfterHeader) {
+						const parsedRetryAfter = parseInt(retryAfterHeader, 10);
+						if (!isNaN(parsedRetryAfter)) {
+							retryAfterSeconds = parsedRetryAfter;
+						} else {
+							const retryDate = Date.parse(retryAfterHeader);
+							if (!isNaN(retryDate)) {
+								retryAfterSeconds = Math.max(
+									0,
+									(retryDate - Date.now()) / 1000,
+								);
+							}
+						}
+						info(
+							`Received 429. Retrying after ${retryAfterSeconds} seconds (from Retry-After header).`,
+						);
+					} else {
+						info(
+							`Received 429. Retrying after ${retryAfterSeconds} seconds (using exponential backoff).`,
+						);
+					}
 
-	private async createEmptyReleaseAsset(): Promise<number> {
-		try {
-			const createdReleaseAsset = await this.sdk.pine.post({
-				resource: 'release_asset',
-				body: {
-					asset_key: this.inputs.assetKey,
-					release: this.inputs.releaseId,
-				},
-			});
-			return createdReleaseAsset.id;
-		} catch (err: any) {
-			if (this.inputs.overwrite && err.statusCode === 409) {
-				info(`Asset ${this.inputs.assetKey} already exists. Overwriting...`);
-				return this.getReleaseAssetId();
-			} else {
-				throw err;
+					if (attempts >= MAX_RETRIES) {
+						info(`Max retries reached for 429 on ${url}.`);
+						throw new Error(
+							`Too many requests to ${url} after ${attempts} attempts. Last status: ${response.status}`,
+						);
+					}
+					await sleep(retryAfterSeconds * 1000);
+					currentBackoff = Math.min(currentBackoff * 2, 30000);
+					continue;
+				}
+
+				if (response.status >= 500 && response.status <= 599) {
+					info(
+						`Received server error ${response.status}. Retrying in ${currentBackoff / 1000}s... (Attempt ${attempts}/${MAX_RETRIES})`,
+					);
+					if (attempts >= MAX_RETRIES) {
+						throw new Error(
+							`Server error ${response.status} for ${args.method ?? 'GET'} ${url} after ${attempts} attempts. Response: ${await response.text()}`,
+						);
+					}
+					await sleep(currentBackoff + Math.random() * 1000);
+					currentBackoff *= 2;
+					continue;
+				}
+
+				return response;
+			} catch (error: any) {
+				// Handle network errors (e.g., timeouts, DNS resolution failures)
+				info(
+					`Network error or fetch exception during attempt ${attempts} for ${args.method ?? 'GET'} ${path}: ${error.message}`,
+				);
+				if (attempts >= MAX_RETRIES) {
+					throw new Error(
+						`Failed to fetch ${args.method ?? 'GET'} ${path} after ${attempts} attempts due to network error: ${error.message}`,
+					);
+				}
+				await sleep(currentBackoff + Math.random() * 1000);
+				currentBackoff *= 2;
 			}
 		}
-	}
 
-	private async streamUpload(metadata: FileMetadata) {
-		debug(
-			`File is smaller than ${MIN_MULTIPART_UPLOAD_SIZE}, uploading via stream upload`,
+		throw new Error(
+			`Failed to complete request to ${path} after ${MAX_RETRIES} attempts.`,
 		);
-		let releaseAssetId: number | undefined;
-		try {
-			releaseAssetId = await this.getReleaseAssetId();
-		} catch (err) {
-			debug(`Release does not exist ${err}`);
-			releaseAssetId = undefined;
-		}
-
-		if (!this.inputs.overwrite && releaseAssetId != null) {
-			throw new Error(
-				`A release asset for ${this.inputs.releaseId} - ${this.inputs.assetKey} already exists`,
-			);
-		}
-
-		const asset = await loadFile(this.inputs.filePath, metadata);
-		if (releaseAssetId != null) {
-			info('Release asset already exists, overriding...');
-			await this.sdk.pine.patch({
-				resource: 'release_asset',
-				id: releaseAssetId,
-				body: { asset },
-			});
-		} else {
-			debug('Release asset does not exist, creating a new one');
-			await this.sdk.pine.post({
-				resource: 'release_asset',
-				body: {
-					asset_key: this.inputs.assetKey,
-					release: this.inputs.releaseId,
-					asset,
-				},
-			});
-		}
-		const sdkResult = (await this.sdk.pine.get({
-			resource: 'release_asset',
-			id: {
-				asset_key: this.inputs.assetKey,
-				release: this.inputs.releaseId,
-			},
-			// @ts-expect-error - use unstable API
-			options: { $select: ['id', 'asset'] },
-		})) as unknown as { id: number; asset: WebResource };
-
-		return {
-			releaseAssetId: sdkResult.id,
-			relaseAssetUrl: sdkResult.asset.href,
-		};
 	}
 
-	private async beginMultipartUpload(
+	public async request(path: string, args: RequestInit = {}) {
+		return await this.fetchWithRetry(path, {
+			...args,
+			headers: {
+				'Content-Type': 'application/json',
+				...args.headers,
+			},
+		});
+	}
+
+	public async baseRequest(path: string, args: RequestInit = {}) {
+		return await this.fetchWithRetry(path, args);
+	}
+
+	public async whoami() {
+		const res = await this.request('/actor/v1/whoami');
+		if (res.ok) {
+			return await res.json();
+		}
+		throw new Error('Not logged in');
+	}
+
+	public async canAccessRlease(releaseId: number) {
+		const res = await this.request(`/resin/release(${releaseId})/canAccess`, {
+			method: 'POST',
+			body: JSON.stringify({ action: 'update' }),
+		});
+
+		if (!res.ok || (await res.json())?.d?.[0]?.id == null) {
+			throw new Error('You do not have necessary access to this release');
+		}
+	}
+
+	public async getReleaseAssetId(
+		releaseId: number,
+		assetKey: string,
+	): Promise<number | undefined> {
+		const res = await this.request(
+			`/resin/release_asset(release=${releaseId},asset_key='${assetKey}')?$select=id`,
+		);
+
+		const body = await res.json();
+		return body.d?.[0]?.id;
+	}
+
+	public async createOrGetReleaseAsset(
+		releaseId: number,
+		assetKey: string,
+		overwrite: boolean,
+	): Promise<number> {
+		const create = await this.request('/resin/release_asset', {
+			method: 'POST',
+			body: JSON.stringify({
+				asset_key: assetKey,
+				release: releaseId,
+			}),
+		});
+
+		if (!create.ok) {
+			if (overwrite && create.status === 409) {
+				info(`Asset ${assetKey} already exists. Overwriting...`);
+				return (await this.getReleaseAssetId(releaseId, assetKey))!;
+			} else {
+				throw new Error(await create.text());
+			}
+		}
+
+		return (await create.json()).id;
+	}
+
+	public async beginMultipartUpload(
 		releaseAssetId: number,
 		metadata: FileMetadata,
-	) {
-		const res = (await this.sdk.request.send({
-			method: 'POST',
-			url: `${this.sdk.pine.apiPrefix}release_asset(${releaseAssetId})/beginUpload`,
-			body: {
-				asset: {
-					filename: metadata.filename,
-					content_type: metadata.contentType,
-					size: metadata.size,
-					chunk_size: this.inputs.chunkSize,
-				},
+		chunkSize: number,
+	): Promise<{
+		asset: {
+			uuid: string;
+			uploadParts: webresources.UploadPart[];
+		};
+	}> {
+		const res = await this.request(
+			`/resin/release_asset(${releaseAssetId})/beginUpload`,
+			{
+				method: 'POST',
+				body: JSON.stringify({
+					asset: {
+						filename: metadata.filename,
+						content_type: metadata.contentType,
+						size: metadata.size,
+						chunk_size: chunkSize,
+					},
+				}),
 			},
-		})) as unknown as { body: BeginReleaseAssetUpload };
-		return res.body;
+		);
+
+		return await res.json();
 	}
 
-	private async commitMultiPartUpload(
+	public async commitMultiPartUpload(
 		releaseAssetId: number,
 		uuid: string,
 		providerCommitData: ProviderCommitPayload,
-	) {
-		const res = (await this.sdk.request.send({
-			method: 'POST',
-			url: `${this.sdk.pine.apiPrefix}release_asset(${releaseAssetId})/commitUpload`,
-			body: { uuid, providerCommitData },
-		})) as unknown as { body: WebResource };
-		return res.body;
+	): Promise<{ href: string }> {
+		const res = await this.request(
+			`/resin/release_asset(${releaseAssetId})/commitUpload`,
+			{
+				method: 'POST',
+				body: JSON.stringify({ uuid, providerCommitData }),
+			},
+		);
+
+		return await res.json();
 	}
 
-	// TODO: be a nice client cancel upload in case it fails
-	// TODO: Probably also delete the release asset makes sense
-
-	private async multipartUpload(metadata: FileMetadata) {
-		const releaseAssetId = await this.createEmptyReleaseAsset();
-		const uploadResponse = await this.beginMultipartUpload(
-			releaseAssetId,
-			metadata,
+	public async cancelMultiPartUpload(releaseAssetId: number, uuid: string) {
+		return await this.request(
+			`/resin/release_asset(${releaseAssetId})/cancelUpload`,
+			{
+				method: 'POST',
+				body: JSON.stringify({ uuid }),
+			},
 		);
-		const providerCommitData = await uploadChunks(
-			uploadResponse.asset.uploadParts,
-			this.inputs,
-			metadata,
-		);
-
-		const asset = await this.commitMultiPartUpload(
-			releaseAssetId,
-			uploadResponse.asset.uuid,
-			providerCommitData,
-		);
-
-		return {
-			releaseAssetId,
-			relaseAssetUrl: asset.href,
-		};
-	}
-
-	public async uploadFile(): Promise<{
-		relaseAssetUrl: string;
-		releaseAssetId: number;
-	}> {
-		await this.canUpdateRelease();
-		const metadata = await fileMetadata(this.inputs.filePath);
-		return metadata.size <= MIN_MULTIPART_UPLOAD_SIZE
-			? await this.streamUpload(metadata)
-			: await this.multipartUpload(metadata);
 	}
 }

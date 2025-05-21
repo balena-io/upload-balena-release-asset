@@ -1,6 +1,6 @@
-import { info, setFailed, setOutput } from '@actions/core';
+import { error, info, setFailed, setOutput } from '@actions/core';
 import { getInputs } from './input.js';
-import { BalenaAPI } from './api.js';
+import { ReleaseAssetUploader } from './uploader.js';
 import { fileExists } from './uploadManager.js';
 
 export async function run(): Promise<void> {
@@ -25,13 +25,13 @@ export async function run(): Promise<void> {
 
 		const exists = await fileExists(inputs);
 		if (exists) {
-			const api = new BalenaAPI(inputs);
-			await api.init();
-			const { relaseAssetUrl, releaseAssetId } = await api.uploadFile();
+			const uploader = new ReleaseAssetUploader(inputs);
+			const { relaseAssetUrl, releaseAssetId } = await uploader.uploadFile();
 			setOutput('asset-id', releaseAssetId);
 			setOutput('asset-url', relaseAssetUrl);
 		}
-	} catch (error) {
-		setFailed(error.message);
+	} catch (err) {
+		error(err.stack);
+		setFailed(err.message);
 	}
 }

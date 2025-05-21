@@ -7,8 +7,10 @@
     "local-action": "npx @github/local-action . src/main.ts .env",
     "lint": "balena-lint src/ test/ && tsc --noEmit",
     "lint-fix": "balena-lint src/ test/ --fix",
-    "build": "tsc",
-    "test": "NODE_OPTIONS=\"--loader ts-node/esm\" mocha --extensions ts \"test/**/*.spec.ts\""
+    "build": "esbuild src/index.ts --bundle --platform=node --outfile=build/index.cjs --format=cjs --target=es2022 --minify",
+    "test": "NODE_OPTIONS=\"--loader ts-node/esm\" mocha --extensions ts \"test/**/*.spec.ts\"",
+    "prepare": "husky",
+    "precommit": "npm run lint && npm run test && npm run build"
   },
   "keywords": [
     "balena",
@@ -33,9 +35,8 @@
   "description": "",
   "dependencies": {
     "@actions/core": "^1.11.1",
-    "balena-sdk": "^21.4.2",
-    "lodash": "^4.17.21",
     "mime-types": "^3.0.1",
+    "p-limit": "^6.2.0",
     "zod": "^3.25.7"
   },
   "devDependencies": {
@@ -50,7 +51,9 @@
     "@types/sinon": "^17.0.4",
     "chai": "^5.2.0",
     "chai-as-promised": "^8.0.1",
+    "esbuild": "^0.25.4",
     "esmock": "^2.7.0",
+    "husky": "^9.1.7",
     "mocha": "^11.4.0",
     "nock": "^14.0.4",
     "sinon": "^20.0.0",

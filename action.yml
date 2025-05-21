@@ -8,10 +8,6 @@ inputs:
   balena-token:
     description: Your balenaCloud API token
     required: true
-  balena-host:
-    description: Domain for the backend services to upload your asset
-    required: false
-    default: balena-staging.com # TODO: update to balena-cloud
   release-id:
     description: 'The release id this asset belongs to'
     required: true
@@ -21,6 +17,9 @@ inputs:
   file-path:
     description: 'A file path to what to upload'
     required: true
+  balena-host:
+    description: Domain for the backend services to upload your asset
+    default: balena-staging.com # TODO: update to balena-cloud
   overwrite: 
     description: >
       If true, an asset with a matching asset-key will be deleted before a new one is uploaded.
@@ -36,7 +35,15 @@ inputs:
         error: Fail the action with an error message
         ignore: Do not output any warnings or errors, the action does not fail
     default: 'warn'
-
+  chunk-size:
+    description: >
+      The size of the chunks to split the file into when uploading.
+      If the file is smaller than this size, it will be uploaded in one go.
+    default: '104857600' # 100MB
+  parallel-chunks:
+    description: >
+      The number of parallel chunks to upload at the same time.
+    default: '4'
 outputs:
   asset-id:
     description: >

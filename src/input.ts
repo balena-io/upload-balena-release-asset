@@ -10,7 +10,11 @@ const inputSchema = z.object({
 	filePath: nonEmptyString,
 	overwrite: z.boolean(),
 	ifFilePathNotFound: z.enum(['warn', 'error', 'ignore']),
+	chunkSize: z.number().min(5242880),
+	parallelChunks: z.number().nonnegative(),
 });
+
+export type Inputs = z.infer<typeof inputSchema>;
 
 export const getInputs = async () => {
 	return await inputSchema.parseAsync({
@@ -21,5 +25,7 @@ export const getInputs = async () => {
 		filePath: getInput('file-path'),
 		overwrite: getInput('overwrite') === 'true',
 		ifFilePathNotFound: getInput('if-file-path-not-found'),
+		chunkSize: parseInt(getInput('chunk-size'), 10),
+		parallelChunks: parseInt(getInput('parallel-chunks'), 10),
 	});
 };

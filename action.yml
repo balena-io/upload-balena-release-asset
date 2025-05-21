@@ -44,7 +44,6 @@ inputs:
     description: >
       The number of parallel chunks to upload at the same time.
     default: '4'
-
 outputs:
   asset-id:
     description: >

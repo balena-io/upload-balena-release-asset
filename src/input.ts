@@ -14,6 +14,8 @@ const inputSchema = z.object({
 	parallelChunks: z.number().nonnegative(),
 });
 
+export type Inputs = z.infer<typeof inputSchema>;
+
 export const getInputs = async () => {
 	return await inputSchema.parseAsync({
 		balenaToken: getInput('balena-token'),

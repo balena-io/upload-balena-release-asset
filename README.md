@@ -51,6 +51,7 @@ with:
   # The number of parallel chunks to upload at the same time.
   # Optional. Default '4'
   parallel-chunks:
+
 ```
 
 ## Examples
@@ -81,4 +82,23 @@ with:
     balena-host: "balena-staging.com"
     chunk-size: 5242880
     parallel-chunks: 20
+```
+
+## Running locally and developing this action
+### Prerequisites
+- [Node.js](https://nodejs.org/en/download/) (v20 or later)
+
+### Install dependencies
+```bash
+npm install
+```
+
+### Run it locally
+```bash
+npm run local-action
+```
+
+### Run tests
+```bash
+npm test
 ```

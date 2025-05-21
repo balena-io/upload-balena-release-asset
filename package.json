@@ -33,18 +33,26 @@
   "description": "",
   "dependencies": {
     "@actions/core": "^1.11.1",
-    "@actions/github": "^6.0.1",
+    "balena-sdk": "^21.4.2",
+    "lodash": "^4.17.21",
+    "mime-types": "^3.0.1",
     "zod": "^3.25.7"
   },
   "devDependencies": {
     "@balena/lint": "^9.3.0",
+    "@balena/pinejs": "^21.6.0",
     "@github/local-action": "^3.2.1",
     "@types/chai": "^5.2.2",
+    "@types/chai-as-promised": "^8.0.2",
+    "@types/mime-types": "^2.1.4",
     "@types/mocha": "^10.0.10",
+    "@types/nock": "^10.0.3",
     "@types/sinon": "^17.0.4",
     "chai": "^5.2.0",
+    "chai-as-promised": "^8.0.1",
     "esmock": "^2.7.0",
     "mocha": "^11.4.0",
+    "nock": "^14.0.4",
     "sinon": "^20.0.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.3"

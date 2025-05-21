@@ -129,7 +129,7 @@ describe('getInputs', () => {
 			expect(error.issues[0].message).to.equal('Expected number, received nan');
 		}
 	});
-	
+
 	it('should throw ZodError if chunkSize is less than 5242880', async () => {
 		mockGetInputValues({ 'chunk-size': '5242879' });
 		try {

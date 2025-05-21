@@ -1,4 +1,4 @@
-import { info, setFailed, setOutput } from '@actions/core';
+import { error, info, setFailed, setOutput } from '@actions/core';
 import { getInputs } from './input.js';
 import { BalenaAPI } from './api.js';
 import { fileExists } from './uploadManager.js';
@@ -31,7 +31,8 @@ export async function run(): Promise<void> {
 			setOutput('asset-id', releaseAssetId);
 			setOutput('asset-url', relaseAssetUrl);
 		}
-	} catch (error) {
-		setFailed(error.message);
+	} catch (err) {
+		error(err.stack);
+		setFailed(err.message);
 	}
 }

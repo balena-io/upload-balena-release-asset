@@ -1,4 +1,32 @@
 - commits:
+    - subject: Add upload-balena-release-asset GHA
+      hash: 3ade29caabfeb1eba43e6e5d903ce713b1f8b3f4
+      body: ""
+      footer:
+        Change-type: minor
+        change-type: minor
+      author: Otavio Jacobi
+      nested: []
+    - subject: Add options to customize chunkSize and parallelUpload chunks
+      hash: d3614996657388e41eba5a1a9133ca63a318443c
+      body: ""
+      footer:
+        Change-type: minor
+        change-type: minor
+      author: Otavio Jacobi
+      nested: []
+    - subject: Move sinon & @types/sinon to devDependencies
+      hash: de0dadbb8539778faf43577c4493507c0e2532ca
+      body: ""
+      footer:
+        Change-type: patch
+        change-type: patch
+      author: Otavio Jacobi
+      nested: []
+  version: 0.1.0
+  title: ""
+  date: 2025-05-21T02:11:52.659Z
+- commits:
     - subject: Add basic project skeleton
       hash: 1501c169d52b7775f71b0dcd788fd85889e6b04d
       body: ""

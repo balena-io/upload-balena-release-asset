@@ -3,8 +3,8 @@ import type { Inputs } from './input.js';
 import fs from 'node:fs/promises';
 import path from 'path';
 import mime from 'mime-types';
-import chunk from 'lodash/chunk.js';
 import type { webResourceHandler as webresources } from '@balena/pinejs';
+import pLimit from 'p-limit';
 
 export type FileMetadata = {
 	filename: string;
@@ -49,7 +49,7 @@ export const loadFile = async (
 	});
 };
 
-const sleep = (ms: number) =>
+export const sleep = (ms: number) =>
 	new Promise<void>((res) =>
 		setTimeout(() => {
 			res();
@@ -143,13 +143,14 @@ export const uploadChunks = async (
 	const commitData = {
 		Parts: [] as Array<{ PartNumber: number; ETag: string }>,
 	};
+
+	const limit = pLimit(inputs.parallelChunks);
 	try {
-		for (const partGroup of chunk(uploadParts, inputs.parallelChunks)) {
-			const receivedParts = await Promise.all(
-				partGroup.map((part) => uploadPartFromFile(fileHandle, part, report)),
-			);
-			commitData.Parts.push(...receivedParts);
-		}
+		commitData.Parts = await Promise.all(
+			uploadParts.map((part) =>
+				limit(() => uploadPartFromFile(fileHandle, part, report)),
+			),
+		);
 	} finally {
 		await fileHandle.close();
 	}

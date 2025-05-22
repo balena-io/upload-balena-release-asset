@@ -1,4 +1,24 @@
 - commits:
+    - subject: Distribute bundled & compiled code as it is needed for gha runners
+      hash: 869c05660384f5282fc1a82292b8801243db1688
+      body: ""
+      footer:
+        Change-type: patch
+        change-type: patch
+      author: Otavio Jacobi
+      nested: []
+    - subject: Fix docs
+      hash: 5b5b225c7694633270fd4965225c17a74d320689
+      body: ""
+      footer:
+        Change-type: patch
+        change-type: patch
+      author: Otavio Jacobi
+      nested: []
+  version: 0.1.1
+  title: ""
+  date: 2025-05-22T11:43:45.943Z
+- commits:
     - subject: Add upload-balena-release-asset GHA
       hash: 3ade29caabfeb1eba43e6e5d903ce713b1f8b3f4
       body: ""

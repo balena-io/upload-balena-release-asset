@@ -39,7 +39,7 @@ inputs:
     description: >
       The size of the chunks to split the file into when uploading.
       If the file is smaller than this size, it will be uploaded in one go.
-    default: '104857600' # 100MB
+    default: '134217728' # 128MB
   parallel-chunks:
     description: >
       The number of parallel chunks to upload at the same time.

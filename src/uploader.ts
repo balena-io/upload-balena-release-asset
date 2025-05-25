@@ -4,7 +4,7 @@ import type { FileMetadata } from './uploadManager.js';
 import { uploadChunks } from './uploadManager.js';
 import { fileMetadata, loadFile } from './uploadManager.js';
 import type { webResourceHandler as webresources } from '@balena/pinejs';
-import { BalenaAPI } from './api.js';
+import { BalenaAPI, type OData } from './api.js';
 
 const MIN_MULTIPART_UPLOAD_SIZE = 5 * 1024 * 1024; // 5MB
 
@@ -34,7 +34,7 @@ export class ReleaseAssetUploader {
 		info(
 			`Logged in to user ${JSON.stringify(await this.api.whoami(), null, 2)}`,
 		);
-		await this.api.canAccessRlease(this.inputs.releaseId);
+		await this.api.canAccessRelease(this.inputs.releaseId);
 		info(`Access to release ${this.inputs.releaseId} confirmed.`);
 	}
 
@@ -58,45 +58,31 @@ export class ReleaseAssetUploader {
 		const form = new FormData();
 		form.append('asset', asset, metadata.filename);
 
-		let res;
 		if (releaseAssetId != null) {
 			info('Release asset already exists, overriding...');
-			res = await this.api.baseRequest(
-				`/resin/release_asset(${releaseAssetId})`,
-				{
-					method: 'PATCH',
-					body: form,
-				},
-			);
+			await this.api.request.patch(`resin/release_asset(${releaseAssetId})`, {
+				body: form,
+			});
 		} else {
 			debug('Release asset does not exist, creating a new one');
 			form.append('asset_key', assetKey);
 			form.append('release', `${releaseId}`);
-			res = await this.api.baseRequest('/resin/release_asset', {
-				method: 'POST',
+			await this.api.request.post('resin/release_asset', {
 				body: form,
 			});
 		}
 
-		if (!res.ok) {
-			throw new Error('Faield to upload release');
-		}
-
-		res = await this.api.request(
-			`/resin/release_asset(release=${releaseId},asset_key='${assetKey}')?$select=id,asset`,
+		const res = await this.api.request.get<
+			OData<{ id: number; asset: { href: string } }>
+		>(
+			`resin/release_asset(release=${releaseId},asset_key='${assetKey}')?$select=id,asset`,
 		);
-
-		if (!res.ok) {
-			throw new Error(
-				'Failed comunicating to balenaAPI after uploading release',
-			);
-		}
 
 		const body = await res.json();
 		const {
 			id,
 			asset: { href: relaseAssetUrl },
-		} = body.d[0];
+		} = body.d![0];
 		return { releaseAssetId: id, relaseAssetUrl };
 	}
 

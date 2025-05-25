@@ -5,6 +5,7 @@ import path from 'path';
 import mime from 'mime-types';
 import type { webResourceHandler as webresources } from '@balena/pinejs';
 import pLimit from 'p-limit';
+import ky from 'ky';
 
 export type FileMetadata = {
 	filename: string;
@@ -49,32 +50,6 @@ export const loadFile = async (
 	});
 };
 
-export const sleep = (ms: number) =>
-	new Promise<void>((res) =>
-		setTimeout(() => {
-			res();
-		}, ms),
-	);
-
-async function withExponentialBackoff<T>(
-	fn: () => Promise<T>,
-	backoffs: number[] = [1000, 2000, 4000, 8000, 16000, 16000, 16000],
-): Promise<T> {
-	let lastError: unknown;
-	for (let attempt = 0; attempt < backoffs.length; attempt++) {
-		try {
-			return await fn();
-		} catch (err) {
-			lastError = err;
-			const delay = backoffs[Math.min(attempt, backoffs.length - 1)];
-			warning(err);
-			warning(`Attempt ${attempt + 1} failed. Retrying in ${delay / 1000}s...`);
-			await sleep(delay);
-		}
-	}
-	throw lastError;
-}
-
 const getReportProgress = (startTime: number, totalSize: number) => {
 	let uploadedBytes = 0;
 	return (bytesRead: number) => {
@@ -99,10 +74,11 @@ const getReportProgress = (startTime: number, totalSize: number) => {
 async function uploadPartFromFile(
 	fileHandle: fs.FileHandle,
 	part: webresources.UploadPart,
+	requestedPartSize: number,
 	report?: (size: number) => void,
 ) {
 	const buffer = Buffer.alloc(part.chunkSize);
-	const offset = (part.partNumber - 1) * part.chunkSize;
+	const offset = (part.partNumber - 1) * requestedPartSize;
 
 	const { bytesRead } = await fileHandle.read(
 		buffer,
@@ -112,23 +88,21 @@ async function uploadPartFromFile(
 	);
 	const dataToSend = buffer.subarray(0, bytesRead);
 
-	return await withExponentialBackoff(async () => {
-		const res = await fetch(part.url, {
-			method: 'PUT',
-			body: dataToSend,
-		});
-		if (!res.ok) {
-			throw new Error(`Upload failed with status ${res.status}`);
-		}
-		const receivedMD5 = res.headers.get('ETag')?.replace(/^"+|"+$/g, '');
-		if (receivedMD5 == null || typeof receivedMD5 !== 'string') {
-			throw new Error(`Error on the received ETag ${receivedMD5}`);
-		}
-
-		report?.(bytesRead);
-
-		return { ETag: receivedMD5, PartNumber: part.partNumber };
+	const res = await ky.put(part.url, {
+		body: dataToSend,
+		timeout: 120_000,
+		retry: {
+			limit: 5,
+		},
 	});
+
+	const receivedEtag = res.headers.get('ETag')?.replace(/^"+|"+$/g, '');
+	if (receivedEtag == null || typeof receivedEtag !== 'string') {
+		throw new Error(`Error on the received ETag ${receivedEtag}`);
+	}
+	report?.(bytesRead);
+
+	return { ETag: receivedEtag, PartNumber: part.partNumber };
 }
 
 export const uploadChunks = async (
@@ -148,7 +122,9 @@ export const uploadChunks = async (
 	try {
 		commitData.Parts = await Promise.all(
 			uploadParts.map((part) =>
-				limit(() => uploadPartFromFile(fileHandle, part, report)),
+				limit(() =>
+					uploadPartFromFile(fileHandle, part, inputs.chunkSize, report),
+				),
 			),
 		);
 	} finally {

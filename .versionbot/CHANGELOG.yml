@@ -1,4 +1,16 @@
 - commits:
+    - subject: Use a more reliable Http client
+      hash: b67d3fcf8f509d720aa820e51e33150a133e4ec3
+      body: ""
+      footer:
+        Change-type: patch
+        change-type: patch
+      author: Otavio Jacobi
+      nested: []
+  version: 0.1.2
+  title: ""
+  date: 2025-05-25T13:13:23.380Z
+- commits:
     - subject: Distribute bundled & compiled code as it is needed for gha runners
       hash: 869c05660384f5282fc1a82292b8801243db1688
       body: ""

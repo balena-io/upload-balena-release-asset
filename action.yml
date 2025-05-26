@@ -11,24 +11,27 @@ inputs:
   release-id:
     description: 'The release id this asset belongs to'
     required: true
-  asset-key:
-    description: 'The asset unique key per release'
+  path:
+    description: 'A file, directory or wildcard pattern that describes what to upload'
     required: true
-  file-path:
-    description: 'A file path to what to upload'
-    required: true
+  key-prefix:
+    description: >
+      A prefix to prepend to the asset key for the uploaded files.
+      By default the slugified file name with relative paht is used as key.
+      If a key-prefix is provided, the slugified file name will be appended to it.
+    default: ''
   balena-host:
     description: Domain for the backend services to upload your asset
     default: balena-staging.com # TODO: update to balena-cloud
-  overwrite: 
+  overwrite:
     description: >
-      If true, an asset with a matching asset-key will be deleted before a new one is uploaded.
-      If false, the action will fail if an asset for the given asset-key already exists.
-      Does not fail if the asset-key does not exist.
+      If true, an asset with a matching release asset key will be deleted before a new one is uploaded.
+      If false, the action will fail if an asset for the given release asset key already exists.
+      Does not fail if the release asset key does not exist.
     default: 'false'
-  if-file-path-not-found:
+  if-no-files-found:
     description: >
-      The desired behavior if the file-path is not found
+      The desired behavior if no files are found using the provided path.
 
       Available Options:
         warn: Output a warning but do not fail the action
@@ -45,17 +48,14 @@ inputs:
       The number of parallel chunks to upload at the same time.
     default: '4'
 outputs:
-  asset-id:
+  release-assets:
     description: >
-      A unique identifier for the artifact that was just uploaded.
+      The list of assets that were uploaded to the release.
 
-      This ID can be used as input to other APIs to download, delete or get more information about an asset.
-  asset-url:
-    description: >
-      A download URL for the asset that was just uploaded. Empty if the asset upload failed.
-
-      This is a presigned URL valid for 24h.
-      For regenerating the URL you need to do a get on the release-asset resource with the asset-id above.
+      This is a JSON array of objects with the following properties:
+        - id: The unique identifier for the release_asset
+        - url: The download URL for the asset
+        - key: The asset key used for the upload
 
 runs:
   using: node20

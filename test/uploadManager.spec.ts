@@ -32,10 +32,7 @@ describe('uploadManager', () => {
 	it('should not throw or warn when file is accessible', async () => {
 		accessStub.resolves();
 
-		const exists = await fileExistsFn({
-			filePath: './some/file.txt',
-			ifFilePathNotFound: 'warn',
-		});
+		const exists = await fileExistsFn('./some/file.txt', 'warn');
 
 		expect(exists).to.be.true;
 		expect(accessStub.calledOnce).to.be.true;
@@ -47,10 +44,7 @@ describe('uploadManager', () => {
 		accessStub.rejects(fakeError);
 
 		try {
-			await fileExistsFn({
-				filePath: './missing/file.txt',
-				ifFilePathNotFound: 'error',
-			});
+			await fileExistsFn('./missing/file.txt', 'error');
 			throw new Error('Expected fileExists to throw');
 		} catch (err) {
 			expect(err).to.be.instanceOf(Error);
@@ -65,10 +59,7 @@ describe('uploadManager', () => {
 		const fakeError = new Error('EACCES');
 		accessStub.rejects(fakeError);
 
-		const exists = await fileExistsFn({
-			filePath: './unreadable/file.txt',
-			ifFilePathNotFound: 'warn',
-		});
+		const exists = await fileExistsFn('./unreadable/file.txt', 'warn');
 
 		expect(exists).to.be.false;
 		expect(warningStub.calledOnce).to.be.true;

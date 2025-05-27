@@ -8,10 +8,10 @@ const DEFAULT_VALID_INPUT_STRINGS: Record<string, string> = {
 	'balena-token': 'test-token-123',
 	'balena-host': 'balena.example.com',
 	'release-id': '123456',
-	'asset-key': 'my-firmware-asset',
-	'file-path': './path/to/firmware.zip',
+	'key-prefix': 'abc',
+	path: './path/to/firmware.zip',
 	overwrite: 'true',
-	'if-file-path-not-found': 'warn',
+	'if-no-files-found': 'warn',
 	'chunk-size': '104857600',
 	'parallel-chunks': '4',
 };
@@ -52,8 +52,8 @@ describe('getInputs', () => {
 			balenaToken: 'test-token-123',
 			balenaHost: 'balena.example.com',
 			releaseId: 123456,
-			assetKey: 'my-firmware-asset',
-			filePath: './path/to/firmware.zip',
+			keyPrefix: 'abc',
+			path: './path/to/firmware.zip',
 			overwrite: true,
 			ifFilePathNotFound: 'warn',
 			chunkSize: 104857600,
@@ -74,7 +74,7 @@ describe('getInputs', () => {
 		expect(inputs.overwrite).to.be.false;
 	});
 
-	['balenaToken', 'balenaHost', 'assetKey', 'filePath'].forEach((field) => {
+	['balenaToken', 'balenaHost', 'path'].forEach((field) => {
 		const inputName = field.replace(/([A-Z])/g, '-$1').toLowerCase();
 		it(`should throw ZodError if ${field} is empty string`, async () => {
 			mockGetInputValues({ [inputName]: '' });

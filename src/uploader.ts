@@ -21,40 +21,44 @@ export type ProviderCommitPayload = {
 		ETag: string;
 	}>;
 };
+
+export type UploaderParams = Omit<Inputs, 'keyPrefix' | 'path'> & {
+	assetKey: string;
+	filePath: string;
+};
+
 export class ReleaseAssetUploader {
 	private api: BalenaAPI;
-	private inputs: Inputs;
 
-	constructor(inputs: Inputs) {
-		this.inputs = inputs;
-		this.api = new BalenaAPI(this.inputs.balenaToken, this.inputs.balenaHost);
+	constructor(private readonly params: UploaderParams) {
+		this.api = new BalenaAPI(this.params.balenaToken, this.params.balenaHost);
 	}
 
 	private async canUpdateRelease() {
 		info(
 			`Logged in to user ${JSON.stringify(await this.api.whoami(), null, 2)}`,
 		);
-		await this.api.canAccessRelease(this.inputs.releaseId);
-		info(`Access to release ${this.inputs.releaseId} confirmed.`);
+		await this.api.canAccessRelease(this.params.releaseId);
+		info(`Access to release ${this.params.releaseId} confirmed.`);
 	}
 
 	private async streamUpload(metadata: FileMetadata) {
 		debug(
 			`File is smaller than ${MIN_MULTIPART_UPLOAD_SIZE}, uploading via stream upload`,
 		);
-		const { releaseId, assetKey } = this.inputs;
+		const { releaseId, assetKey } = this.params;
 		const releaseAssetId = await this.api.getReleaseAssetId(
 			releaseId,
 			assetKey,
 		);
 
-		if (!this.inputs.overwrite && releaseAssetId != null) {
+		if (!this.params.overwrite && releaseAssetId != null) {
 			throw new Error(
 				`A release asset for ${releaseId} - ${assetKey} already exists`,
 			);
 		}
 
-		const asset = await loadFile(this.inputs.filePath, metadata);
+		const asset = await loadFile(this.params.filePath, metadata);
 		const form = new FormData();
 		form.append('asset', asset, metadata.filename);
 
@@ -87,7 +91,7 @@ export class ReleaseAssetUploader {
 	}
 
 	private async multipartUpload(metadata: FileMetadata) {
-		const { releaseId, assetKey, overwrite } = this.inputs;
+		const { releaseId, assetKey, overwrite } = this.params;
 		const releaseAssetId = await this.api.createOrGetReleaseAsset(
 			releaseId,
 			assetKey,
@@ -96,13 +100,13 @@ export class ReleaseAssetUploader {
 		const uploadResponse = await this.api.beginMultipartUpload(
 			releaseAssetId,
 			metadata,
-			this.inputs.chunkSize,
+			this.params.chunkSize,
 		);
 
 		try {
 			const providerCommitData = await uploadChunks(
 				uploadResponse.asset.uploadParts,
-				this.inputs,
+				this.params,
 				metadata,
 			);
 
@@ -134,7 +138,10 @@ export class ReleaseAssetUploader {
 		releaseAssetId: number;
 	}> {
 		await this.canUpdateRelease();
-		const metadata = await fileMetadata(this.inputs.filePath);
+		const metadata = await fileMetadata(this.params.filePath);
+		info(
+			`Starting upload with key: ${this.params.assetKey} for ${JSON.stringify(metadata, null, 2)}`,
+		);
 		return metadata.size <= MIN_MULTIPART_UPLOAD_SIZE
 			? await this.streamUpload(metadata)
 			: await this.multipartUpload(metadata);

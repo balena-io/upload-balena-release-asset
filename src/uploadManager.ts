@@ -1,11 +1,11 @@
 import { info, warning } from '@actions/core';
-import type { Inputs } from './input.js';
 import fs from 'node:fs/promises';
 import path from 'path';
 import mime from 'mime-types';
 import type { webResourceHandler as webresources } from '@balena/pinejs';
 import pLimit from 'p-limit';
 import ky from 'ky';
+import type { UploaderParams } from './uploader.js';
 
 export type FileMetadata = {
 	filename: string;
@@ -13,10 +13,10 @@ export type FileMetadata = {
 	size: number;
 };
 
-export const fileExists = async ({
-	filePath,
-	ifFilePathNotFound,
-}: Pick<Inputs, 'filePath' | 'ifFilePathNotFound'>) => {
+export const fileExists = async (
+	filePath: string,
+	ifFilePathNotFound: 'error' | 'warn' | 'ignore',
+) => {
 	try {
 		await fs.access(filePath, fs.constants.R_OK);
 		return true;
@@ -93,6 +93,7 @@ async function uploadPartFromFile(
 		timeout: 120_000,
 		retry: {
 			limit: 5,
+			afterStatusCodes: [429, 500, 502, 503, 504],
 		},
 	});
 
@@ -107,10 +108,10 @@ async function uploadPartFromFile(
 
 export const uploadChunks = async (
 	uploadParts: webresources.UploadPart[],
-	inputs: Inputs,
+	params: UploaderParams,
 	metadata: FileMetadata,
 ) => {
-	const fileHandle = await fs.open(inputs.filePath, 'r');
+	const fileHandle = await fs.open(params.filePath, 'r');
 
 	const report = getReportProgress(Date.now(), metadata.size);
 
@@ -118,12 +119,12 @@ export const uploadChunks = async (
 		Parts: [] as Array<{ PartNumber: number; ETag: string }>,
 	};
 
-	const limit = pLimit(inputs.parallelChunks);
+	const limit = pLimit(params.parallelChunks);
 	try {
 		commitData.Parts = await Promise.all(
 			uploadParts.map((part) =>
 				limit(() =>
-					uploadPartFromFile(fileHandle, part, inputs.chunkSize, report),
+					uploadPartFromFile(fileHandle, part, params.chunkSize, report),
 				),
 			),
 		);

@@ -1,4 +1,16 @@
 - commits:
+    - subject: Allow for multiple files upload
+      hash: 88be4cb07938208f6b171428b0a2aac6aa12c9bf
+      body: ""
+      footer:
+        Change-type: patch
+        change-type: patch
+      author: Otavio Jacobi
+      nested: []
+  version: 0.1.3
+  title: ""
+  date: 2025-05-27T17:29:14.992Z
+- commits:
     - subject: Use a more reliable Http client
       hash: b67d3fcf8f509d720aa820e51e33150a133e4ec3
       body: ""

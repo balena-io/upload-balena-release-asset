@@ -1,4 +1,16 @@
 - commits:
+    - subject: Use least common ancestor standard path as default key
+      hash: 8196e593c6e3fca23fa0655382095e0b05d8ecfc
+      body: ""
+      footer:
+        Change-type: patch
+        change-type: patch
+      author: Otavio Jacobi
+      nested: []
+  version: 0.1.4
+  title: ""
+  date: 2025-07-10T14:18:44.596Z
+- commits:
     - subject: Allow for multiple files upload
       hash: 88be4cb07938208f6b171428b0a2aac6aa12c9bf
       body: ""

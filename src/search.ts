@@ -3,7 +3,6 @@ import { debug, info } from '@actions/core';
 import path from 'node:path';
 import { stat } from 'node:fs/promises';
 import { dirname } from 'node:path';
-import slugify from '@sindresorhus/slugify';
 
 /**
  * If multiple paths are specific, the least common ancestor (LCA) of the search paths is used as
@@ -145,7 +144,6 @@ export async function getFilesWithKeys(
 
 	return filesToUpload.map((filePath) => {
 		const relative = path.relative(rootDirectory, filePath);
-		const appendPrefix = prefix ? `${prefix}-` : '';
-		return { filePath, key: `${appendPrefix}${slugify(relative)}` };
+		return { filePath, key: `${prefix}${relative}` };
 	});
 }

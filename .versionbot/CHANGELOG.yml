@@ -1,4 +1,16 @@
 - commits:
+    - subject: Update api version to stable v7 and default host to balena-cloud
+      hash: 0d0bad5675bf43110937260e13fc3b5c0e5d589f
+      body: ""
+      footer:
+        Change-type: patch
+        change-type: patch
+      author: Otavio Jacobi
+      nested: []
+  version: 0.1.5
+  title: ""
+  date: 2025-08-27T18:55:34.483Z
+- commits:
     - subject: Use least common ancestor standard path as default key
       hash: 8196e593c6e3fca23fa0655382095e0b05d8ecfc
       body: ""

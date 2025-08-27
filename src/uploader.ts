@@ -64,14 +64,14 @@ export class ReleaseAssetUploader {
 
 		if (releaseAssetId != null) {
 			info('Release asset already exists, overriding...');
-			await this.api.request.patch(`resin/release_asset(${releaseAssetId})`, {
+			await this.api.request.patch(`v7/release_asset(${releaseAssetId})`, {
 				body: form,
 			});
 		} else {
 			debug('Release asset does not exist, creating a new one');
 			form.append('asset_key', assetKey);
 			form.append('release', `${releaseId}`);
-			await this.api.request.post('resin/release_asset', {
+			await this.api.request.post('v7/release_asset', {
 				body: form,
 			});
 		}
@@ -79,7 +79,7 @@ export class ReleaseAssetUploader {
 		const res = await this.api.request.get<
 			OData<{ id: number; asset: { href: string } }>
 		>(
-			`resin/release_asset(release=${releaseId},asset_key='${assetKey}')?$select=id,asset`,
+			`v7/release_asset(release=${releaseId},asset_key='${assetKey}')?$select=id,asset`,
 		);
 
 		const body = await res.json();

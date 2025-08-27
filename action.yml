@@ -22,7 +22,7 @@ inputs:
     default: ''
   balena-host:
     description: Domain for the backend services to upload your asset
-    default: balena-staging.com # TODO: update to balena-cloud
+    default: balena-cloud.com
   overwrite:
     description: >
       If true, an asset with a matching release asset key will be deleted before a new one is uploaded.

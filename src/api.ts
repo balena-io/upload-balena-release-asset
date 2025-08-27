@@ -46,14 +46,14 @@ export class BalenaAPI {
 	}
 
 	public async canAccessRelease(releaseId: number) {
-		await this.request.post(`resin/release(${releaseId})/canAccess`, {
+		await this.request.post(`v7/release(${releaseId})/canAccess`, {
 			json: { action: 'update' },
 		});
 	}
 
 	public async getReleaseAssetId(releaseId: number, assetKey: string) {
 		const res = await this.request.get<ODataID>(
-			`resin/release_asset(release=${releaseId},asset_key='${assetKey}')?$select=id`,
+			`v7/release_asset(release=${releaseId},asset_key='${assetKey}')?$select=id`,
 		);
 
 		const body = await res.json();
@@ -67,7 +67,7 @@ export class BalenaAPI {
 	): Promise<number> {
 		try {
 			const create = await this.request.post<{ id: number }>(
-				'resin/release_asset',
+				'v7/release_asset',
 				{
 					json: {
 						asset_key: assetKey,
@@ -93,7 +93,7 @@ export class BalenaAPI {
 		chunkSize: number,
 	) {
 		const res = await this.request.post<ReleaseAssetBeginUpload>(
-			`resin/release_asset(${releaseAssetId})/beginUpload`,
+			`v7/release_asset(${releaseAssetId})/beginUpload`,
 			{
 				json: {
 					asset: {
@@ -115,7 +115,7 @@ export class BalenaAPI {
 		providerCommitData: ProviderCommitPayload,
 	) {
 		const res = await this.request.post<{ href: string }>(
-			`resin/release_asset(${releaseAssetId})/commitUpload`,
+			`v7/release_asset(${releaseAssetId})/commitUpload`,
 			{
 				json: { uuid, providerCommitData },
 			},
@@ -126,7 +126,7 @@ export class BalenaAPI {
 
 	public async cancelMultiPartUpload(releaseAssetId: number, uuid: string) {
 		return await this.request.post(
-			`resin/release_asset(${releaseAssetId})/cancelUpload`,
+			`v7/release_asset(${releaseAssetId})/cancelUpload`,
 			{
 				json: { uuid },
 			},

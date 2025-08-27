@@ -77,7 +77,7 @@ with:
   with:
     balena-token: "*****"
     release-id: 123456
-    key-prefix: "prefix"
+    key-prefix: "prefix/"
     file-path: |
       /some/path/licenses.tgz
       /some/other/
@@ -92,7 +92,7 @@ with:
 ## About asset keys and paths
 The asset key is a unique identifier for the asset within the release. By default, the action uses the slugified file name with its least common ancestor relative path as the asset key. If you provide a `key-prefix`, it will append the slugified file name to that prefix.
 
-For example, if you only upload a file located at `/some/path/licenses.tgz`, the default asset key would be `licenses-tgz`. If you set `key-prefix` to `my-prefix`, the asset key would be `my-prefix-licenses-tgz`.
+For example, if you only upload a file located at `/some/path/licenses.tgz`, the default asset key would be `licenses.tgz`. If you set `key-prefix` to `my-prefix/`, the asset key would be `my-prefix/licenses.tgz`.
 
 More over, if you have a folder structure like this:
 
@@ -103,12 +103,12 @@ More over, if you have a folder structure like this:
 /some/other/excluded-file.txt
 ```
 
-with the above action (which has a `key-prefix` of `prefix`), the asset keys would be:
+with the above action (which has a `key-prefix` of `prefix/`), the asset keys would be:
 
 ```
-prefix-path-licenses-tgz
-prefix-other-file-txt
-prefix-other-another-file-txt
+prefix/path/licenses.tgz
+prefix/other/file.txt
+prefix/other/another/file.txt
 # and nothing for excluded-file.txt as it is excluded by the pattern
 ```
 

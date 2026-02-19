@@ -1,4 +1,18 @@
 - commits:
+    - subject: "Add id-token: write permission for NPM OIDC publishing"
+      hash: 006c375f66eebc1681b01aff8a9f6aeb692b4e7b
+      body: ""
+      footer:
+        Change-type: patch
+        change-type: patch
+        Signed-off-by: Kyle Harding <kyle@balena.io>
+        signed-off-by: Kyle Harding <kyle@balena.io>
+      author: Kyle Harding
+      nested: []
+  version: 0.1.6
+  title: ""
+  date: 2026-02-19T01:43:56.846Z
+- commits:
     - subject: Update api version to stable v7 and default host to balena-cloud
       hash: 0d0bad5675bf43110937260e13fc3b5c0e5d589f
       body: ""

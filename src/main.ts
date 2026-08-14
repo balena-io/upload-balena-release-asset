@@ -28,7 +28,7 @@ export async function run(): Promise<void> {
 		info(`Found ${files.length} files matching the pattern ${inputs.path}`);
 		info(`Files found: ${JSON.stringify(files, null, 2)}`);
 		if (files.length > 0) {
-			const output: Array<{ id: number; url: string; key: string }> = [];
+			const output: Array<{ id: number; key: string }> = [];
 			for (const { filePath, key } of files) {
 				info(`Uploading file ${filePath}`);
 				await fileExists(filePath, inputs.ifFilePathNotFound);
@@ -38,10 +38,9 @@ export async function run(): Promise<void> {
 					filePath,
 					assetKey: key,
 				});
-				const { relaseAssetUrl, releaseAssetId } = await uploader.uploadFile();
+				const releaseAssetId = await uploader.uploadFile();
 				output.push({
 					id: releaseAssetId,
-					url: relaseAssetUrl,
 					key,
 				});
 			}

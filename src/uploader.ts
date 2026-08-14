@@ -4,8 +4,7 @@ import type { FileMetadata } from './uploadManager.js';
 import { uploadChunks } from './uploadManager.js';
 import { fileMetadata, loadFile } from './uploadManager.js';
 import type { webResourceHandler as webresources } from '@balena/pinejs';
-import { BalenaAPI, describeReleaseAsset } from './api.js';
-import { retryUntilFound } from './retry.js';
+import { BalenaAPI } from './api.js';
 import { HTTPError } from 'ky';
 
 const MIN_MULTIPART_UPLOAD_SIZE = 5 * 1024 * 1024; // 5MB
@@ -53,7 +52,7 @@ export class ReleaseAssetUploader {
 		info(`Access to release ${this.params.releaseId} confirmed.`);
 	}
 
-	private async streamUpload(metadata: FileMetadata) {
+	private async streamUpload(metadata: FileMetadata): Promise<number> {
 		debug(
 			`File is smaller than ${MIN_MULTIPART_UPLOAD_SIZE}, uploading via stream upload`,
 		);
@@ -75,11 +74,7 @@ export class ReleaseAssetUploader {
 			await this.createReleaseAsset(metadata);
 		}
 
-		const { id, href } = await this.api.getUploadedReleaseAsset(
-			releaseId,
-			assetKey,
-		);
-		return { releaseAssetId: id, relaseAssetUrl: href };
+		return await this.api.getUploadedReleaseAssetId(releaseId, assetKey);
 	}
 
 	private async assetForm(metadata: FileMetadata) {
@@ -120,15 +115,15 @@ export class ReleaseAssetUploader {
 			}
 
 			info('Release asset already exists, overriding...');
-			const releaseAssetId = await retryUntilFound(
-				() => this.api.getReleaseAssetId(releaseId, assetKey),
-				describeReleaseAsset(releaseId, assetKey),
+			const releaseAssetId = await this.api.getReleaseAssetIdAfterWrite(
+				releaseId,
+				assetKey,
 			);
 			await this.patchReleaseAsset(releaseAssetId, metadata);
 		}
 	}
 
-	private async multipartUpload(metadata: FileMetadata) {
+	private async multipartUpload(metadata: FileMetadata): Promise<number> {
 		const { releaseId, assetKey, overwrite } = this.params;
 		const releaseAssetId = await this.api.createOrGetReleaseAsset(
 			releaseId,
@@ -148,16 +143,13 @@ export class ReleaseAssetUploader {
 				metadata,
 			);
 
-			const asset = await this.api.commitMultiPartUpload(
+			await this.api.commitMultiPartUpload(
 				releaseAssetId,
 				uploadResponse.asset.uuid,
 				providerCommitData,
 			);
 
-			return {
-				releaseAssetId,
-				relaseAssetUrl: asset.href,
-			};
+			return releaseAssetId;
 		} catch (e) {
 			error('Failed to upload parts or commit upload');
 			error(e.message);
@@ -171,10 +163,7 @@ export class ReleaseAssetUploader {
 		}
 	}
 
-	public async uploadFile(): Promise<{
-		relaseAssetUrl: string;
-		releaseAssetId: number;
-	}> {
+	public async uploadFile(): Promise<number> {
 		await this.canUpdateRelease();
 		const metadata = await fileMetadata(this.params.filePath);
 		info(

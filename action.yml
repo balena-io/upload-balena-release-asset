@@ -54,7 +54,6 @@ outputs:
 
       This is a JSON array of objects with the following properties:
         - id: The unique identifier for the release_asset
-        - url: The download URL for the asset
         - key: The asset key used for the upload
 
 runs:

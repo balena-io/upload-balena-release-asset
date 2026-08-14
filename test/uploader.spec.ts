@@ -1,13 +1,11 @@
 import { expect } from 'chai';
 import sinon from 'sinon';
 import esmock from 'esmock';
-import { describeReleaseAsset } from '../src/api.js';
 import type { UploaderParams } from '../src/uploader.js';
 import { rejectionOf } from './helpers.js';
 
 const RELEASE_ID = 237228;
 const ASSET_KEY = 'compressed/part-6.deflate';
-const ASSET_HREF = 'https://s3.example.com/compressed/part-6.deflate';
 const METADATA = {
 	filename: 'part-6.deflate',
 	contentType: 'application/octet-stream',
@@ -34,16 +32,16 @@ const params = (overwrite: boolean): UploaderParams => ({
 
 describe('ReleaseAssetUploader', () => {
 	let getReleaseAssetId: sinon.SinonStub;
-	let getUploadedReleaseAsset: sinon.SinonStub;
+	let getReleaseAssetIdAfterWrite: sinon.SinonStub;
+	let getUploadedReleaseAssetId: sinon.SinonStub;
 	let post: sinon.SinonStub;
 	let patch: sinon.SinonStub;
 	let ReleaseAssetUploader: typeof import('../src/uploader.js').ReleaseAssetUploader;
 
 	beforeEach(async () => {
 		getReleaseAssetId = sinon.stub();
-		getUploadedReleaseAsset = sinon
-			.stub()
-			.resolves({ id: 5, href: ASSET_HREF });
+		getReleaseAssetIdAfterWrite = sinon.stub();
+		getUploadedReleaseAssetId = sinon.stub().resolves(5);
 		post = sinon.stub().resolves();
 		patch = sinon.stub().resolves();
 
@@ -52,13 +50,14 @@ describe('ReleaseAssetUploader', () => {
 			public whoami = sinon.stub().resolves({ id: 1 });
 			public canAccessRelease = sinon.stub().resolves();
 			public getReleaseAssetId = getReleaseAssetId;
-			public getUploadedReleaseAsset = getUploadedReleaseAsset;
+			public getReleaseAssetIdAfterWrite = getReleaseAssetIdAfterWrite;
+			public getUploadedReleaseAssetId = getUploadedReleaseAssetId;
 		}
 
 		({ ReleaseAssetUploader } = await esmock(
 			'../src/uploader.js',
 			{
-				'../src/api.js': { BalenaAPI: FakeBalenaAPI, describeReleaseAsset },
+				'../src/api.js': { BalenaAPI: FakeBalenaAPI },
 				'../src/uploadManager.js': {
 					fileMetadata: sinon.stub().resolves(METADATA),
 					loadFile: sinon
@@ -71,7 +70,6 @@ describe('ReleaseAssetUploader', () => {
 				ky: { HTTPError: FakeHTTPError },
 			},
 			{
-				'node:timers/promises': { setTimeout: sinon.stub().resolves() },
 				'@actions/core': {
 					debug: sinon.stub(),
 					info: sinon.stub(),
@@ -85,19 +83,18 @@ describe('ReleaseAssetUploader', () => {
 		sinon.restore();
 	});
 
-	it('should create the asset and read it back through the retrying lookup', async () => {
+	it('should create the asset and read its id back through the retrying lookup', async () => {
 		getReleaseAssetId.resolves(undefined);
 
-		const result = await new ReleaseAssetUploader(params(false)).uploadFile();
+		const releaseAssetId = await new ReleaseAssetUploader(
+			params(false),
+		).uploadFile();
 
-		expect(result).to.deep.equal({
-			releaseAssetId: 5,
-			relaseAssetUrl: ASSET_HREF,
-		});
+		expect(releaseAssetId).to.equal(5);
 		expect(post.calledOnce).to.be.true;
 		expect(patch.notCalled).to.be.true;
-		expect(getUploadedReleaseAsset.calledOnceWith(RELEASE_ID, ASSET_KEY)).to.be
-			.true;
+		expect(getUploadedReleaseAssetId.calledOnceWith(RELEASE_ID, ASSET_KEY)).to
+			.be.true;
 
 		const form = post.firstCall.args[1].body as FormData;
 		expect(form.get('asset_key')).to.equal(ASSET_KEY);
@@ -107,30 +104,31 @@ describe('ReleaseAssetUploader', () => {
 	it('should patch an asset that the existence check already found', async () => {
 		getReleaseAssetId.resolves(11);
 
-		const result = await new ReleaseAssetUploader(params(true)).uploadFile();
+		const releaseAssetId = await new ReleaseAssetUploader(
+			params(true),
+		).uploadFile();
 
-		expect(result).to.deep.equal({
-			releaseAssetId: 5,
-			relaseAssetUrl: ASSET_HREF,
-		});
+		expect(releaseAssetId).to.equal(5);
 		expect(patch.calledOnce).to.be.true;
 		expect(patch.firstCall.args[0]).to.equal(`v7/release_asset(11)`);
 		expect(post.notCalled).to.be.true;
+		// The upload is only reported once the asset is readable again.
+		expect(getUploadedReleaseAssetId.calledOnceWith(RELEASE_ID, ASSET_KEY)).to
+			.be.true;
 	});
 
 	it('should patch the existing asset when the create conflicts and overwrite is set', async () => {
 		// The existence check read a replica that had not caught up, so the create
 		// below conflicts with an asset we could not see.
-		getReleaseAssetId.onFirstCall().resolves(undefined);
-		getReleaseAssetId.onSecondCall().resolves(11);
+		getReleaseAssetId.resolves(undefined);
+		getReleaseAssetIdAfterWrite.resolves(11);
 		post.rejects(new FakeHTTPError({ status: 409 }));
 
-		const result = await new ReleaseAssetUploader(params(true)).uploadFile();
+		const releaseAssetId = await new ReleaseAssetUploader(
+			params(true),
+		).uploadFile();
 
-		expect(result).to.deep.equal({
-			releaseAssetId: 5,
-			relaseAssetUrl: ASSET_HREF,
-		});
+		expect(releaseAssetId).to.equal(5);
 		expect(patch.calledOnce).to.be.true;
 		expect(patch.firstCall.args[0]).to.equal(`v7/release_asset(11)`);
 
@@ -164,6 +162,6 @@ describe('ReleaseAssetUploader', () => {
 
 		expect(err?.message).to.equal('Request failed with status code 401');
 		expect(patch.notCalled).to.be.true;
-		expect(getUploadedReleaseAsset.notCalled).to.be.true;
+		expect(getUploadedReleaseAssetId.notCalled).to.be.true;
 	});
 });

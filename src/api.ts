@@ -3,6 +3,7 @@ import type { FileMetadata } from './uploadManager.js';
 import type { webResourceHandler as webresources } from '@balena/pinejs';
 import type { ProviderCommitPayload } from './uploader.js';
 import ky, { HTTPError, type KyInstance } from 'ky';
+import { retryUntilFound } from './retry.js';
 
 const MAX_RETRIES = 5;
 export type OData<T> = {
@@ -11,12 +12,25 @@ export type OData<T> = {
 
 type ODataID = OData<{ id?: number }>;
 
+type ODataReleaseAsset = OData<{
+	id?: number;
+	asset?: { href?: string } | null;
+}>;
+
+export type UploadedReleaseAsset = {
+	id: number;
+	href: string;
+};
+
 type ReleaseAssetBeginUpload = {
 	asset: {
 		uuid: string;
 		uploadParts: webresources.UploadPart[];
 	};
 };
+
+export const describeReleaseAsset = (releaseId: number, assetKey: string) =>
+	`release asset '${assetKey}' of release ${releaseId}`;
 
 export class BalenaAPI {
 	public request: KyInstance;
@@ -60,6 +74,32 @@ export class BalenaAPI {
 		return body.d?.[0]?.id;
 	}
 
+	/**
+	 * Reads back a release asset that was just written, tolerating replication lag.
+	 *
+	 * Both the row and its asset href must be readable before we consider the
+	 * upload visible: a row that shows up before its asset is populated is treated
+	 * as "not there yet" rather than returned half filled in.
+	 */
+	public async getUploadedReleaseAsset(
+		releaseId: number,
+		assetKey: string,
+	): Promise<UploadedReleaseAsset> {
+		return await retryUntilFound(
+			async () => {
+				const res = await this.request.get<ODataReleaseAsset>(
+					`v7/release_asset(release=${releaseId},asset_key='${assetKey}')?$select=id,asset`,
+				);
+
+				const { id, asset } = (await res.json()).d?.[0] ?? {};
+				return id != null && asset?.href != null
+					? { id, href: asset.href }
+					: undefined;
+			},
+			describeReleaseAsset(releaseId, assetKey),
+		);
+	}
+
 	public async createOrGetReleaseAsset(
 		releaseId: number,
 		assetKey: string,
@@ -80,9 +120,16 @@ export class BalenaAPI {
 		} catch (e) {
 			if (e instanceof HTTPError && overwrite && e.response.status === 409) {
 				info(`Asset ${assetKey} already exists. Overwriting...`);
-				return (await this.getReleaseAssetId(releaseId, assetKey))!;
+				// The 409 proves the asset exists, so an empty read here is lag.
+				return await retryUntilFound(
+					() => this.getReleaseAssetId(releaseId, assetKey),
+					describeReleaseAsset(releaseId, assetKey),
+				);
 			} else {
-				throw new Error('Conflict creating release asset', e.message);
+				throw new Error(
+					`Failed to create ${describeReleaseAsset(releaseId, assetKey)}`,
+					{ cause: e },
+				);
 			}
 		}
 	}

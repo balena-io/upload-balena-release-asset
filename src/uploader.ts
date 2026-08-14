@@ -4,7 +4,9 @@ import type { FileMetadata } from './uploadManager.js';
 import { uploadChunks } from './uploadManager.js';
 import { fileMetadata, loadFile } from './uploadManager.js';
 import type { webResourceHandler as webresources } from '@balena/pinejs';
-import { BalenaAPI, type OData } from './api.js';
+import { BalenaAPI, describeReleaseAsset } from './api.js';
+import { retryUntilFound } from './retry.js';
+import { HTTPError } from 'ky';
 
 const MIN_MULTIPART_UPLOAD_SIZE = 5 * 1024 * 1024; // 5MB
 
@@ -26,6 +28,15 @@ export type UploaderParams = Omit<Inputs, 'keyPrefix' | 'path'> & {
 	assetKey: string;
 	filePath: string;
 };
+
+const alreadyExistsError = (
+	releaseId: number,
+	assetKey: string,
+	cause?: unknown,
+) =>
+	new Error(`A release asset for ${releaseId} - ${assetKey} already exists`, {
+		cause,
+	});
 
 export class ReleaseAssetUploader {
 	private api: BalenaAPI;
@@ -53,41 +64,68 @@ export class ReleaseAssetUploader {
 		);
 
 		if (!this.params.overwrite && releaseAssetId != null) {
-			throw new Error(
-				`A release asset for ${releaseId} - ${assetKey} already exists`,
-			);
+			throw alreadyExistsError(releaseId, assetKey);
 		}
-
-		const asset = await loadFile(this.params.filePath, metadata);
-		const form = new FormData();
-		form.append('asset', asset, metadata.filename);
 
 		if (releaseAssetId != null) {
 			info('Release asset already exists, overriding...');
-			await this.api.request.patch(`v7/release_asset(${releaseAssetId})`, {
-				body: form,
-			});
+			await this.patchReleaseAsset(releaseAssetId, metadata);
 		} else {
 			debug('Release asset does not exist, creating a new one');
-			form.append('asset_key', assetKey);
-			form.append('release', `${releaseId}`);
+			await this.createReleaseAsset(metadata);
+		}
+
+		const { id, href } = await this.api.getUploadedReleaseAsset(
+			releaseId,
+			assetKey,
+		);
+		return { releaseAssetId: id, relaseAssetUrl: href };
+	}
+
+	private async assetForm(metadata: FileMetadata) {
+		const asset = await loadFile(this.params.filePath, metadata);
+		const form = new FormData();
+		form.append('asset', asset, metadata.filename);
+		return form;
+	}
+
+	private async patchReleaseAsset(
+		releaseAssetId: number,
+		metadata: FileMetadata,
+	) {
+		await this.api.request.patch(`v7/release_asset(${releaseAssetId})`, {
+			body: await this.assetForm(metadata),
+		});
+	}
+
+	private async createReleaseAsset(metadata: FileMetadata) {
+		const { releaseId, assetKey, overwrite } = this.params;
+		const form = await this.assetForm(metadata);
+		form.append('asset_key', assetKey);
+		form.append('release', `${releaseId}`);
+
+		try {
 			await this.api.request.post('v7/release_asset', {
 				body: form,
 			});
+		} catch (e) {
+			if (!(e instanceof HTTPError) || e.response.status !== 409) {
+				throw e;
+			}
+
+			// The asset does exist, our existence check just read a replica that had
+			// not caught up with the write that created it yet.
+			if (!overwrite) {
+				throw alreadyExistsError(releaseId, assetKey, e);
+			}
+
+			info('Release asset already exists, overriding...');
+			const releaseAssetId = await retryUntilFound(
+				() => this.api.getReleaseAssetId(releaseId, assetKey),
+				describeReleaseAsset(releaseId, assetKey),
+			);
+			await this.patchReleaseAsset(releaseAssetId, metadata);
 		}
-
-		const res = await this.api.request.get<
-			OData<{ id: number; asset: { href: string } }>
-		>(
-			`v7/release_asset(release=${releaseId},asset_key='${assetKey}')?$select=id,asset`,
-		);
-
-		const body = await res.json();
-		const {
-			id,
-			asset: { href: relaseAssetUrl },
-		} = body.d![0];
-		return { releaseAssetId: id, relaseAssetUrl };
 	}
 
 	private async multipartUpload(metadata: FileMetadata) {

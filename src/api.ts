@@ -3,6 +3,7 @@ import type { FileMetadata } from './uploadManager.js';
 import type { webResourceHandler as webresources } from '@balena/pinejs';
 import type { ProviderCommitPayload } from './uploader.js';
 import ky, { HTTPError, type KyInstance } from 'ky';
+import { retryUntilFound } from './retry.js';
 
 const MAX_RETRIES = 5;
 export type OData<T> = {
@@ -11,12 +12,20 @@ export type OData<T> = {
 
 type ODataID = OData<{ id?: number }>;
 
+type ODataReleaseAsset = OData<{
+	id?: number;
+	asset?: { href?: string } | null;
+}>;
+
 type ReleaseAssetBeginUpload = {
 	asset: {
 		uuid: string;
 		uploadParts: webresources.UploadPart[];
 	};
 };
+
+const describeReleaseAsset = (releaseId: number, assetKey: string) =>
+	`release asset '${assetKey}' of release ${releaseId}`;
 
 export class BalenaAPI {
 	public request: KyInstance;
@@ -60,6 +69,48 @@ export class BalenaAPI {
 		return body.d?.[0]?.id;
 	}
 
+	/**
+	 * Reads the id of a release asset we know exists, tolerating replication lag.
+	 *
+	 * A write is acknowledged by a primary, but a read that immediately follows can
+	 * be served by a replica that has not caught up, so an asset we just wrote can
+	 * briefly read back as if it did not exist.
+	 */
+	public async getReleaseAssetIdAfterWrite(
+		releaseId: number,
+		assetKey: string,
+	): Promise<number> {
+		return await retryUntilFound(
+			() => this.getReleaseAssetId(releaseId, assetKey),
+			describeReleaseAsset(releaseId, assetKey),
+		);
+	}
+
+	/**
+	 * Reads back the id of a release asset we just uploaded, once it is usable.
+	 *
+	 * On top of the replication lag handled above, the row can show up before its
+	 * asset is populated, so the id is only returned once both are readable. The
+	 * href itself is deliberately not returned or logged: it is a presigned URL,
+	 * and on an overwrite a lagging replica can still be serving the previous one.
+	 */
+	public async getUploadedReleaseAssetId(
+		releaseId: number,
+		assetKey: string,
+	): Promise<number> {
+		return await retryUntilFound(
+			async () => {
+				const res = await this.request.get<ODataReleaseAsset>(
+					`v7/release_asset(release=${releaseId},asset_key='${assetKey}')?$select=id,asset`,
+				);
+
+				const { id, asset } = (await res.json()).d?.[0] ?? {};
+				return asset?.href != null ? id : undefined;
+			},
+			describeReleaseAsset(releaseId, assetKey),
+		);
+	}
+
 	public async createOrGetReleaseAsset(
 		releaseId: number,
 		assetKey: string,
@@ -80,9 +131,13 @@ export class BalenaAPI {
 		} catch (e) {
 			if (e instanceof HTTPError && overwrite && e.response.status === 409) {
 				info(`Asset ${assetKey} already exists. Overwriting...`);
-				return (await this.getReleaseAssetId(releaseId, assetKey))!;
+				// The 409 proves the asset exists, so an empty read here is lag.
+				return await this.getReleaseAssetIdAfterWrite(releaseId, assetKey);
 			} else {
-				throw new Error('Conflict creating release asset', e.message);
+				throw new Error(
+					`Failed to create ${describeReleaseAsset(releaseId, assetKey)}`,
+					{ cause: e },
+				);
 			}
 		}
 	}
@@ -114,14 +169,12 @@ export class BalenaAPI {
 		uuid: string,
 		providerCommitData: ProviderCommitPayload,
 	) {
-		const res = await this.request.post<{ href: string }>(
+		await this.request.post(
 			`v7/release_asset(${releaseAssetId})/commitUpload`,
 			{
 				json: { uuid, providerCommitData },
 			},
 		);
-
-		return await res.json();
 	}
 
 	public async cancelMultiPartUpload(releaseAssetId: number, uuid: string) {

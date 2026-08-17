@@ -1,4 +1,29 @@
 - commits:
+    - subject: Check href is recheable but not output it to logs
+      hash: 0b4edce2a298face807bbb2b7ec1b29f7a257611
+      body: ""
+      footer:
+        Change-type: minor
+        change-type: minor
+      author: Otavio Jacobi
+      nested: []
+    - subject: Retry reads that immediately follow a write
+      hash: 950f62e5c5cfb0ea66dab4ea9d05b6a9cd0a5e08
+      body: |
+        Uploads were failing with "Cannot destructure property 'id' of 'a.d[0]'
+        as it is undefined" even though the release asset had been written
+        successfully. The write is acknowledged by a primary while the read that
+        immediately follows can be served by a replica that has not caught up
+        yet, so the asset briefly reads back as if it did not exist.
+      footer:
+        Change-type: patch
+        change-type: patch
+      author: Otavio Jacobi
+      nested: []
+  version: 0.2.0
+  title: ""
+  date: 2026-08-17T13:22:00.158Z
+- commits:
     - subject: "Add id-token: write permission for NPM OIDC publishing"
       hash: 006c375f66eebc1681b01aff8a9f6aeb692b4e7b
       body: ""
